@@ -14,6 +14,7 @@ const int LD8 =  77;
 const int BTN1 = 4;
 const int BTN2 = 78;
 const int BTN4 = 81;
+const int SW1 = 2;
 
 const byte colorBLACK = 0x00;
 const byte colorWHITE = 0xFF;
@@ -30,16 +31,21 @@ const int PLAYER_HEIGHT = 4;
 const int PLAYER_WIDTH = 8;
 const int ENEMY1_HEIGHT = 4;
 const int ENEMY1_WIDTH = 8;
+const int EXPLOSION_DURATION = 10;
 
 int BTN1_state = 0;
 int BTN2_state = 0;  
 int BTN4_state = 0; 
+int SW1_state = 0;
 
 int activeBulletsX[MAX_BULLETS];
 int activeBulletsY[MAX_BULLETS];
 int enemiesX[MAX_ENEMIES];
 int enemiesY[MAX_ENEMIES];
 int screenSpace[128][32];
+int explosionsX[MAX_ENEMIES];
+int explosionsY[MAX_ENEMIES];
+int explosionsT[MAX_ENEMIES];
 
 int pPosX = 0;
 int pPosY = 0;
@@ -50,6 +56,7 @@ int terrainPointer = 0;
 int enemyCount = 0;
 int placeEnemyCounter = 0;
 int bulletCount = 0;
+int explosionCount = 0;
 //BMP STUFF
 int terrain_array[SCREEN_WIDTH][SCREEN_HEIGHT] = {
   {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},//0
@@ -189,6 +196,10 @@ uint8_t bmpShip[] = {
 uint8_t bmpEnemy1[] = {
   0x06,0x0F,0x0F,0x06,0x06,0x0F,0x0F,0x06
 };
+
+uint8_t bmpExplosion[] = {
+  0x0A,0x01,0x00,0x0E,0x07,0x00,0x08,0x05
+};
 //
 
 void setup() {
@@ -204,6 +215,7 @@ void setup() {
   pinMode(BTN1, INPUT);
   pinMode(BTN2, INPUT);
   pinMode(BTN4, INPUT); 
+  pinMode(SW1, INPUT);
   
   IOShieldOled.begin();  
   //IOShieldOled.setDrawMode(modeSet);
@@ -220,6 +232,8 @@ void setup() {
 } 
 void loop() {
   IOShieldOled.clearBuffer();
+  
+  checkPause();
 // Read state of buttons
   BTN1_state = digitalRead(BTN1); 
   BTN2_state = digitalRead(BTN2);
@@ -279,6 +293,7 @@ void drawScreen() {
       }
    }
    drawBullets();
+   //drawExplosions();
    IOShieldOled.moveTo(pPosX,pPosY);
    IOShieldOled.putBmp(PLAYER_WIDTH,PLAYER_HEIGHT,bmpShip);
    drawEnemy();
@@ -302,13 +317,31 @@ void drawEnemy() {
     }
   }
 }
+void drawExplosions(){
+  for(int x = 0; x < explosionCount; x++){
+    if(explosionsX[x] != NULL){
+      if(explosionsT[x] > 0){
+        IOShieldOled.moveTo(explosionsX[x],explosionsY[x]);
+        IOShieldOled.putBmp(ENEMY1_WIDTH,ENEMY1_HEIGHT,bmpExplosion); 
+        explosionsT[x]--;
+      }else{
+        explosionsX[x] = NULL;
+        explosionCount--;
+      }
+    }
+  }  
+}
 // Detect if any bullets hit a target
 void detectBulletHits() {
   for(int j = 0;j < MAX_BULLETS; j++){
     for(int k = 0;k < MAX_ENEMIES; k++){
       int distX = activeBulletsX[j] - enemiesX[k];
       int distY = activeBulletsY[j] - enemiesY[k];
-      if(distX < ENEMY1_WIDTH && distX >= 0 && distY < ENEMY1_HEIGHT && distY >= 0) {
+      if(distX < ENEMY1_WIDTH && distX >= 0 && distY < ENEMY1_HEIGHT + 1 && distY >= 0) {
+        explosionsX[explosionCount] = enemiesX[k];
+        explosionsY[explosionCount] = enemiesX[k];
+        explosionsT[explosionCount] = EXPLOSION_DURATION;
+        explosionCount++;
         activeBulletsX[j] = NULL;
         bulletCount--;
         enemiesX[k] = NULL;
@@ -380,7 +413,7 @@ void createEnemy(int i, int j) {
     while(enemiesX[enemySlot] !=NULL){
       enemySlot++;
     }
-    enemiesX[enemySlot] = 110;
+    enemiesX[enemySlot] = 125;
     enemiesY[enemySlot] = (rand() % 20) + 5;
     enemyCount++;
   }
@@ -395,5 +428,11 @@ void createNewBullet() {
     activeBulletsX[bulletSlot] = pPosX;
     activeBulletsY[bulletSlot] = pPosY+1;
     bulletCount++;
+  }
+}
+void checkPause(){
+  SW1_state = digitalRead(SW1);
+  while(SW1_state == LOW){
+    SW1_state = digitalRead(SW1); 
   }
 }
